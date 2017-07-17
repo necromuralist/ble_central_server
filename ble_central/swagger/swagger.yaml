@@ -1,0 +1,28 @@
+swagger: "2.0"
+info:
+  title: BTLE Central Device Server
+  version: "0.0.1"
+
+consumes:
+  - application/json
+
+produces:
+  - application/json
+
+paths:
+  /scan/:
+    get:
+      tags: [Scan]
+      operationID: blec_api.scan
+      summary: Get advertising peripheral information.
+      parameters:
+        - name: timeout
+          in: query
+          description: Seconds to scan
+          type: float
+      responses:
+        200:
+          description: Return found devices
+          schema:
+            type: array
+            items

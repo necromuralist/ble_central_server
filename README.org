@@ -1,0 +1,131 @@
+#+TITLE: Bluetooth Low Energy Connected Device
+
+This provides a command-line interface and web-server for bluepy. I created it to help me learn about Bluetooth Low Energy.
+
+* Installation
+** Dependencies
+
+   To get the =pypi= available dependencies you can use the requirements file.
+
+#+BEGIN_EXAMPLE
+pip install -r requirements.txt
+#+END_EXAMPLE
+
+=bluepy= requires a little work to get installed, and I make a custom change to =connexion= which are documented in the next sections
+
+** Bluepy
+
+   The first thing needed is bluepy. I prefer to install it by hand, particularly since I mostly run this on a desktop, and as of July 16, 2017 the [[https://pypi.python.org/pypi/bluepy/1.1.1][version on pypi]] doesn't build build the correct executable. Also, the code is still under active development so it's probably better to grab the latest version from github.
+
+#+BEGIN_EXAMPLE
+git clone git@github.com:IanHarvey/bluepy.git
+#+END_EXAMPLE
+
+*** Set Up the Helper
+
+=bluepy= uses a compiled executable (=bluepy-helper=) that will be built when you install it. So, assuming you are on a debian-based system, you should install the build-requirements like this.
+
+#+BEGIN_EXAMPLE
+sudo apt-get install build-essential libglib2.0-dev
+#+END_EXAMPLE
+
+**** Bluez update
+     Truthfully, I don't know if this is a bad idea or not, but the version of bluez that is in the bluepy repository is quite old. In particular it is missing some of the bug-fixes that were implemented specifically for Bluetooth Low Energy, so to be safe I download the latest bluez version [[http://www.bluez.org/download/][from the bluez site]] and then rename it so that when the helper is built it uses it.
+
+#+BEGIN_EXAMPLE
+mv bluez-5.29 bluez-5.29.orig
+mv bluez-5.46 bluez-5.29
+#+END_EXAMPLE
+
+Alternatively you could edit the Makefile, but this seems like a simpler way to do it.
+
+*** Install bluepy
+
+First setup and build it.
+
+#+BEGIN_EXAMPLE
+cd bluepy/
+python setup.py build
+sudo python setup.py install
+#+END_EXAMPLE
+
+This will build the helper and then install it with the code. The default helper doesn't have permission to connect to bluetooth so I like to change the permissions on it so that I don't have to run the python code as root.
+
+First change into the folder where bluepy was installed (in this case I'll assume it's in a virtualenv named ble_central).
+
+#+BEGIN_EXAMPLE
+cd ~/.virtualenvs/ble_central/lib/python3.5/site-packages/bluepy
+#+END_EXAMPLE
+
+Now change the permissions so it can be run without being root.
+
+#+BEGIN_EXAMPLE
+sudo setcap 'cap_net_raw,cap_net_admin+eip' bluepy-helper
+#+END_EXAMPLE
+
+You can test it by running =blescan=.
+
+#+BEGIN_SRC bash
+blescan
+#+END_SRC
+
+#+RESULTS:
+Scanning for devices...
+    Device (new): b0:91:22:f6:c8:04 (public), -51 dBm 
+        Flags: <05>
+        Incomplete 16b Services: <80aa>
+        Complete Local Name: 'CC2650 SensorTag'
+        Tx Power: <00>
+        0x12: <08002003>
+        Manufacturer: <0d00030000>
+
+Note that if you don't have any Bluetooth Low Energy devices nearby this won't return anything. If you see this:
+
+#+BEGIN_EXAMPLE
+Scanning for devices...
+Traceback (most recent call last):
+  File "/home/hades/.virtualenvs/ble_central/bin/blescan", line 11, in <module>
+    load_entry_point('bluepy==1.1.1', 'console_scripts', 'blescan')()
+  File "/home/hades/.virtualenvs/ble_central/lib/python3.5/site-packages/bluepy/blescan.py", line 122, in main
+    devices = scanner.scan(arg.timeout)
+  File "/home/hades/.virtualenvs/ble_central/lib/python3.5/site-packages/bluepy/btle.py", line 674, in scan
+    self.start()
+  File "/home/hades/.virtualenvs/ble_central/lib/python3.5/site-packages/bluepy/btle.py", line 612, in start
+    self._mgmtCmd("le on")
+  File "/home/hades/.virtualenvs/ble_central/lib/python3.5/site-packages/bluepy/btle.py", line 276, in _mgmtCmd
+    "Failed to execute mgmt cmd '%s'" % (cmd))
+bluepy.btle.BTLEException: Failed to execute mgmt cmd 'le on'
+#+END_EXAMPLE
+
+Then something went wrong with setting the permissions. Try it again or run blescan as root.
+
+
+** Connexion
+
+   To get the web-server running I'm using [[https://connexion.readthedocs.io/en/latest/][connexion]] which adds the [[https://swagger.io][swagger-ui]] to [[http://flask.pocoo.org][flask]]. The swagger-ui reminds me quite a bit of the [[https://www.django-rest-framework.org][django rest framework's]] browsable API, but it's an open standard that expects you to define the API outside of the code that implements it. There's actually another project for flask called [[https://github.com/noirbizarre/flask-restplus][flask-restplus]] that feels a little closer to the django rest-framework insofar as it automatically generates the swagger-ui page for you, but I think the idea of defining the API first makes a lot of sense, even if it is less convenient. Also =flask-restplus= uses decorators for everything, which makes it a little harder to re-use, and one of my goals here is to provide a Command-Line-Interface so that's kind of a big deal.
+
+   One of the problems with =connexion= (besides the lack of good documentation - which is the problem with most code, including mine, I know) is that it isn't as flexible as =flask-restplus= is. In particular, I like having the API UI transform the JSON being sent to the server into form-fields. This makes it easier for those using the web UI rather than code. So, first I installed connexion (you don't have to do this if you installed it from the =requirements.txt= file).
+
+#+BEGIN_EXAMPLE
+pip install connexion
+#+END_EXAMPLE
+
+Then I edited the template to make the change.
+
+#+BEGIN_EXAMPLE
+cd ~/.virtualenvs/ble_central/lib/python3.5/site-packages/connexion/vendor/swagger-ui
+#+END_EXAMPLE
+
+Then I open the =index.html= file in a text editor (emacs) and change the line:
+
+#+BEGIN_EXAMPLE
+        jsonEditor: false,
+#+END_EXAMPLE
+
+to
+
+#+BEGIN_EXAMPLE
+        jsonEditor: true,
+#+END_EXAMPLE
+
+This is quite hacky, I admit, but this is the first time I've tried to use this package and I'm not sure I'm committed enough to it to make a better solution yet.
